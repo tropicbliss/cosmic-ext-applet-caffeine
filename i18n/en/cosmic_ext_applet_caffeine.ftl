@@ -1,0 +1,1 @@
+stay-awake = Stay Awake

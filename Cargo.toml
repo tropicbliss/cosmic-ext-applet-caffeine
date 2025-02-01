@@ -1,0 +1,22 @@
+[package]
+name = "cosmic-ext-applet-caffeine"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+cosmic-time = { git = "https://github.com/pop-os/cosmic-time", default-features = false, features = [
+    "libcosmic",
+    "once_cell",
+] }
+i18n-embed = { version = "0.15.3", features = [
+    "fluent-system",
+    "desktop-requester",
+] }
+i18n-embed-fl = "0.9.3"
+rust-embed = "8.5.0"
+zbus = { version = "5.3.1", features = ["blocking-api"] }
+
+[dependencies.libcosmic]
+git = "https://github.com/pop-os/libcosmic"
+default-features = false
+features = ["applet", "tokio", "wayland"]
