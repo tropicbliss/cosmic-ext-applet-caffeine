@@ -23,7 +23,7 @@ pub struct Window {
     core: Core,
     popup: Option<Id>,
     caffeine: Caffeine,
-    is_stay_alive: bool,
+    is_stay_awake: bool,
     timeline: Timeline,
 }
 
@@ -88,19 +88,29 @@ impl cosmic::Application for Window {
                     self.popup = None;
                 }
             }
-            Message::Caffeine(chain, is_set_alive) => {
+            Message::Caffeine(chain, is_stay_awake) => {
                 self.timeline.set_chain(chain).start();
-                let _ = if is_set_alive {
+                tracing::info!(
+                    "{} stay awake",
+                    if is_stay_awake {
+                        "Enabling"
+                    } else {
+                        "Disabling"
+                    }
+                );
+                if let Err(e) = if is_stay_awake {
                     self.caffeine.caffeinate()
                 } else {
                     self.caffeine.decaffeinate()
-                };
+                } {
+                    tracing::error!("Failed to stay awake: {e:?}");
+                }
                 return cosmic::command::message(Message::SetStayAwake(
                     self.caffeine.is_caffeinated(),
                 ));
             }
-            Message::SetStayAwake(is_stay_alive) => {
-                self.is_stay_alive = is_stay_alive;
+            Message::SetStayAwake(is_stay_awake) => {
+                self.is_stay_awake = is_stay_awake;
             }
             Message::Frame(now) => self.timeline.now(now),
         }
@@ -123,7 +133,7 @@ impl cosmic::Application for Window {
                     SHOW_MEDIA_CONTROLS,
                     &self.timeline,
                     Some(fl!("stay-awake").to_string()),
-                    self.is_stay_alive,
+                    self.is_stay_awake,
                     Message::Caffeine,
                 )
                 .text_size(14)
@@ -148,7 +158,9 @@ impl cosmic::Application for Window {
     }
 
     fn on_app_exit(&mut self) -> Option<Self::Message> {
-        let _ = self.caffeine.cleanup();
+        if let Err(e) = self.caffeine.cleanup() {
+            tracing::error!("Failed to exit gracefully: {e:?}");
+        }
         None
     }
 }
