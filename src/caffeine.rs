@@ -14,12 +14,11 @@ trait ScreenSaver {
     fn un_inhibit(&self, cookie: u32) -> Result<()>;
 }
 
-static PROXY: Lazy<Result<ScreenSaverProxyBlocking<'_>>> = Lazy::new(|| {
-    let conn = Connection::session()?;
-    Ok(ScreenSaverProxyBlocking::new(&conn)?)
-});
-
 fn get_proxy() -> Result<&'static ScreenSaverProxyBlocking<'static>> {
+    static PROXY: Lazy<Result<ScreenSaverProxyBlocking<'_>>> = Lazy::new(|| {
+        let conn = Connection::session()?;
+        Ok(ScreenSaverProxyBlocking::new(&conn)?)
+    });
     let proxy = match PROXY.as_ref() {
         Ok(proxy) => proxy,
         Err(e) => return Err(e.clone()),
