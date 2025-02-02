@@ -19,6 +19,14 @@ static CONN: Lazy<Result<ScreenSaverProxyBlocking<'_>>> = Lazy::new(|| {
     Ok(ScreenSaverProxyBlocking::new(&conn)?)
 });
 
+fn get_proxy() -> Result<&'static ScreenSaverProxyBlocking<'static>> {
+    let proxy = match CONN.as_ref() {
+        Ok(proxy) => proxy,
+        Err(e) => return Err(e.clone()),
+    };
+    Ok(proxy)
+}
+
 #[derive(Clone, Default)]
 /// Keep screen awake by inhibiting `org.freedesktop.ScreenSaver`
 pub struct Caffeine {
@@ -27,10 +35,7 @@ pub struct Caffeine {
 
 impl Caffeine {
     pub fn caffeinate(&mut self) -> Result<()> {
-        let proxy = match CONN.as_ref() {
-            Ok(proxy) => proxy,
-            Err(e) => return Err(e.clone()),
-        };
+        let proxy = get_proxy()?;
         let cookie = proxy.inhibit(
             env!("CARGO_PKG_NAME"),
             concat!("Inhibited via ", env!("CARGO_PKG_NAME")),
@@ -41,10 +46,7 @@ impl Caffeine {
 
     pub fn decaffeinate(&mut self) -> Result<()> {
         if let Some(cookie) = self.cookie {
-            let proxy = match CONN.as_ref() {
-                Ok(proxy) => proxy,
-                Err(e) => return Err(e.clone()),
-            };
+            let proxy = get_proxy()?;
             proxy.un_inhibit(cookie)?;
             self.cookie = None;
         }
@@ -55,12 +57,9 @@ impl Caffeine {
         self.cookie.is_some()
     }
 
-    pub fn cleanup(&mut self) -> Result<()> {
+    pub fn cleanup(&self) -> Result<()> {
         if let Some(cookie) = self.cookie {
-            let proxy = match CONN.as_ref() {
-                Ok(proxy) => proxy,
-                Err(e) => return Err(e.clone()),
-            };
+            let proxy = get_proxy()?;
             proxy.un_inhibit(cookie)?;
         }
         Ok(())
