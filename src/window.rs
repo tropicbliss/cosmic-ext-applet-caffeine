@@ -16,7 +16,7 @@ use crate::fl;
 static SHOW_MEDIA_CONTROLS: Lazy<id::Toggler> = Lazy::new(id::Toggler::unique);
 
 const ID: &str = "net.tropicbliss.CosmicExtAppletCaffeine";
-const ICON: &str = "cosmic-applet-battery-display-brightness-high-symbolic";
+const ICON: &str = "net.tropicbliss.CaffeineIcon";
 
 #[derive(Default)]
 pub struct Window {

@@ -1,13 +1,14 @@
 [Desktop Entry]
 Name=Caffeine
-Comment=Change brightness of external monitors via DDC/CI protocol
+Comment=A lightweight system tray application that prevents your screen from going to
+sleep
 Type=Application
 Exec=cosmic-ext-applet-caffeine
 Terminal=false
 Categories=Cosmic;Iced;
 Keywords=Cosmic;Iced;
 # Translators: Do NOT translate or transliterate this text (this is an icon file name)!
-Icon=display-symbolic
+Icon=net.tropicbliss.CaffeineIcon-symbolic
 StartupNotify=true
 NoDisplay=true
 X-CosmicApplet=true
