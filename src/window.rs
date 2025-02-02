@@ -22,7 +22,8 @@ const ICON: &str = "cosmic-applet-battery-display-brightness-high-symbolic";
 pub struct Window {
     core: Core,
     popup: Option<Id>,
-    awaker: Caffeine,
+    caffeine: Caffeine,
+    is_stay_alive: bool,
     timeline: Timeline,
 }
 
@@ -30,7 +31,8 @@ pub struct Window {
 pub enum Message {
     TogglePopup,
     PopupClosed(Id),
-    SetStayAwake(chain::Toggler, bool),
+    Caffeine(chain::Toggler, bool),
+    SetStayAwake(bool),
     Frame(Instant),
 }
 
@@ -86,13 +88,19 @@ impl cosmic::Application for Window {
                     self.popup = None;
                 }
             }
-            Message::SetStayAwake(chain, is_set_alive) => {
+            Message::Caffeine(chain, is_set_alive) => {
                 self.timeline.set_chain(chain).start();
                 let _ = if is_set_alive {
-                    self.awaker.caffeinate()
+                    self.caffeine.caffeinate()
                 } else {
-                    self.awaker.decaffeinate()
+                    self.caffeine.decaffeinate()
                 };
+                return cosmic::command::message(Message::SetStayAwake(
+                    self.caffeine.is_caffeinated(),
+                ));
+            }
+            Message::SetStayAwake(is_stay_alive) => {
+                self.is_stay_alive = is_stay_alive;
             }
             Message::Frame(now) => self.timeline.now(now),
         }
@@ -115,8 +123,8 @@ impl cosmic::Application for Window {
                     SHOW_MEDIA_CONTROLS,
                     &self.timeline,
                     Some(fl!("stay-awake").to_string()),
-                    self.awaker.is_caffeinated(),
-                    Message::SetStayAwake,
+                    self.is_stay_alive,
+                    Message::Caffeine,
                 )
                 .text_size(14)
                 .width(Length::Fill),
@@ -137,5 +145,10 @@ impl cosmic::Application for Window {
 
     fn style(&self) -> Option<<Theme as application::StyleSheet>::Style> {
         Some(cosmic::applet::style())
+    }
+
+    fn on_app_exit(&mut self) -> Option<Self::Message> {
+        let _ = self.caffeine.cleanup();
+        None
     }
 }

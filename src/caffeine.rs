@@ -1,4 +1,4 @@
-use std::cell::LazyCell;
+use cosmic_time::once_cell::sync::Lazy;
 use zbus::{blocking::Connection, proxy, Result};
 
 #[proxy(
@@ -14,27 +14,20 @@ trait ScreenSaver {
     fn un_inhibit(&self, cookie: u32) -> Result<()>;
 }
 
-fn get_proxy<'a>() -> LazyCell<Result<ScreenSaverProxyBlocking<'a>>> {
-    LazyCell::new(|| {
-        let connection = Connection::session()?;
-        let proxy = ScreenSaverProxyBlocking::new(&connection)?;
-        Ok(proxy)
-    })
-}
+static CONN: Lazy<Result<ScreenSaverProxyBlocking<'_>>> = Lazy::new(|| {
+    let conn = Connection::session()?;
+    Ok(ScreenSaverProxyBlocking::new(&conn)?)
+});
 
+#[derive(Clone, Default)]
 /// Keep screen awake by inhibiting `org.freedesktop.ScreenSaver`
 pub struct Caffeine {
     cookie: Option<u32>,
 }
 
 impl Caffeine {
-    pub fn new() -> Self {
-        Self { cookie: None }
-    }
-
     pub fn caffeinate(&mut self) -> Result<()> {
-        let proxy = get_proxy();
-        let proxy = match proxy.as_ref() {
+        let proxy = match CONN.as_ref() {
             Ok(proxy) => proxy,
             Err(e) => return Err(e.clone()),
         };
@@ -48,8 +41,7 @@ impl Caffeine {
 
     pub fn decaffeinate(&mut self) -> Result<()> {
         if let Some(cookie) = self.cookie {
-            let proxy = get_proxy();
-            let proxy = match proxy.as_ref() {
+            let proxy = match CONN.as_ref() {
                 Ok(proxy) => proxy,
                 Err(e) => return Err(e.clone()),
             };
@@ -62,16 +54,15 @@ impl Caffeine {
     pub fn is_caffeinated(&self) -> bool {
         self.cookie.is_some()
     }
-}
 
-impl Drop for Caffeine {
-    fn drop(&mut self) {
-        let _ = self.decaffeinate().unwrap();
-    }
-}
-
-impl Default for Caffeine {
-    fn default() -> Self {
-        Self::new()
+    pub fn cleanup(&mut self) -> Result<()> {
+        if let Some(cookie) = self.cookie {
+            let proxy = match CONN.as_ref() {
+                Ok(proxy) => proxy,
+                Err(e) => return Err(e.clone()),
+            };
+            proxy.un_inhibit(cookie)?;
+        }
+        Ok(())
     }
 }
