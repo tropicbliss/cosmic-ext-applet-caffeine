@@ -16,7 +16,6 @@ use crate::fl;
 static SHOW_MEDIA_CONTROLS: Lazy<id::Toggler> = Lazy::new(id::Toggler::unique);
 
 const ID: &str = "net.tropicbliss.CosmicExtAppletCaffeine";
-const ICON: &str = "net.tropicbliss.CaffeineIcon";
 
 #[derive(Default)]
 pub struct Window {
@@ -120,7 +119,7 @@ impl cosmic::Application for Window {
     fn view(&self) -> Element<Self::Message> {
         self.core
             .applet
-            .icon_button(ICON)
+            .icon_button(ID)
             .on_press(Message::TogglePopup)
             .into()
     }
