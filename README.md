@@ -4,6 +4,8 @@ A lightweight system tray application that prevents your screen from going to
 sleep. Perfect for presentations, watching videos, or any situation where you
 need your display to stay active.
 
+![Screenshot of applet](res/screenshot.png)
+
 ## How It Works
 
 This applet uses the D-Bus screensaver interface (org.freedesktop.ScreenSaver)
