@@ -33,7 +33,7 @@ build-release *args: (build-debug '--release' args)
 install:
     install -Dm0755 {{bin-src}} {{bin-dst}}
     install -Dm0644 {{desktop-src}} {{desktop-dst}}
-    sudo cp res/*.svg /usr/share/icons/hicolor/scalable/apps
+    sudo cp res/net.tropicbliss.CosmicExtAppletCaffeine.svg /usr/share/icons/hicolor/scalable/apps
 
 # Uninstalls installed files
 uninstall:
