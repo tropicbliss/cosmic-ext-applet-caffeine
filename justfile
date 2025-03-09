@@ -15,6 +15,10 @@ desktop := APPID + '.desktop'
 desktop-src := 'res' / desktop
 desktop-dst := clean(rootdir / prefix) / 'share' / 'applications' / desktop
 
+icon := APPID + '.svg'
+icon-src := 'res' / icon
+icon-dst := clean(rootdir / prefix) / 'share' / 'icons' / 'hicolor' / 'scalable' / 'apps' / icon
+
 # Default recipe which runs `just build-release`
 default: build-release
 
@@ -33,7 +37,7 @@ build-release *args: (build-debug '--release' args)
 install:
     install -Dm0755 {{bin-src}} {{bin-dst}}
     install -Dm0644 {{desktop-src}} {{desktop-dst}}
-    sudo cp res/net.tropicbliss.CosmicExtAppletCaffeine.svg /usr/share/icons/hicolor/scalable/apps
+    install -Dm0644 {{icon-src}} {{icon-dst}}
 
 # Uninstalls installed files
 uninstall:
