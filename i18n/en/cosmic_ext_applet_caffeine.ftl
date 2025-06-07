@@ -1,1 +1,10 @@
 stay-awake = Stay Awake
+fifteen-minutes = 15 Minutes
+thirty-minutes = 30 Minutes
+one-hour = 1 Hour
+two-hours = 2 Hours
+four-hours = 4 Hours
+custom-duration = Custom Duration
+back = Back
+start = Start
+minutes = Minutes

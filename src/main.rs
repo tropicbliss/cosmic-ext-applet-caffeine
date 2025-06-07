@@ -3,6 +3,7 @@ use crate::window::Window;
 
 mod caffeine;
 mod localize;
+mod timer;
 mod window;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");

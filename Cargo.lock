@@ -898,7 +898,7 @@ dependencies = [
 
 [[package]]
 name = "cosmic-ext-applet-caffeine"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cosmic-time",
  "i18n-embed",

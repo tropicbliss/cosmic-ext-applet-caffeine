@@ -1,19 +1,25 @@
+use std::sync::LazyLock;
+use std::time::Duration;
+
 use cosmic::app::Core;
+use cosmic::applet::{self, padded_control};
+use cosmic::cosmic_theme::Spacing;
 use cosmic::iced::wayland::popup::{destroy_popup, get_popup};
 use cosmic::iced::window::Id;
-use cosmic::iced::{Command, Length, Limits};
+use cosmic::iced::{widget, Command, Length, Limits, Subscription};
 use cosmic::iced_runtime::core::window;
 use cosmic::iced_style::application;
-use cosmic::iced_widget::Column;
-use cosmic::widget::container;
-use cosmic::{Element, Theme};
+use cosmic::iced_widget::{row, Column};
+use cosmic::widget::{divider, text_input};
+use cosmic::{theme, Apply, Element, Theme};
 use cosmic_time::once_cell::sync::Lazy;
 use cosmic_time::{anim, chain, id, Instant, Timeline};
 
 use crate::caffeine::Caffeine;
 use crate::fl;
+use crate::timer::Timer;
 
-static SHOW_MEDIA_CONTROLS: Lazy<id::Toggler> = Lazy::new(id::Toggler::unique);
+static STAY_AWAKE_CONTROLS: Lazy<id::Toggler> = Lazy::new(id::Toggler::unique);
 
 const ID: &str = "net.tropicbliss.CosmicExtAppletCaffeine";
 
@@ -24,6 +30,14 @@ pub struct Window {
     caffeine: Caffeine,
     is_stay_awake: bool,
     timeline: Timeline,
+    timer: Timer,
+    timer_string: Option<String>,
+    custom_duration_window: Option<CustomDurationWindow>,
+}
+
+#[derive(Default)]
+pub struct CustomDurationWindow {
+    minutes_text: String,
 }
 
 #[derive(Clone, Debug)]
@@ -31,8 +45,14 @@ pub enum Message {
     TogglePopup,
     PopupClosed(Id),
     Caffeine(chain::Toggler, bool),
-    SetStayAwake(bool),
     Frame(Instant),
+    SetStayAwake(bool),
+    Tick,
+    SetTimer(u64),
+    CustomDuration,
+    CustomDurationBack,
+    EnterCustomDuration(String),
+    CustomDurationStart,
 }
 
 impl cosmic::Application for Window {
@@ -83,12 +103,12 @@ impl cosmic::Application for Window {
                 };
             }
             Message::PopupClosed(id) => {
+                self.custom_duration_window = None;
                 if self.popup.as_ref() == Some(&id) {
                     self.popup = None;
                 }
             }
-            Message::Caffeine(chain, is_stay_awake) => {
-                self.timeline.set_chain(chain).start();
+            Message::SetStayAwake(is_stay_awake) => {
                 tracing::info!(
                     "{} stay awake",
                     if is_stay_awake {
@@ -100,18 +120,58 @@ impl cosmic::Application for Window {
                 if let Err(e) = if is_stay_awake {
                     self.caffeine.caffeinate()
                 } else {
+                    self.timer.cancel();
+                    self.timer_string = None;
                     self.caffeine.decaffeinate()
                 } {
                     tracing::error!("Failed to stay awake: {e:?}");
                 }
-                return cosmic::command::message(Message::SetStayAwake(
-                    self.caffeine.is_caffeinated(),
-                ));
+                self.is_stay_awake = self.caffeine.is_caffeinated();
             }
-            Message::SetStayAwake(is_stay_awake) => {
-                self.is_stay_awake = is_stay_awake;
+            Message::Caffeine(chain, is_stay_awake) => {
+                self.timeline.set_chain(chain).start();
+                return cosmic::command::message(Message::SetStayAwake(is_stay_awake));
             }
             Message::Frame(now) => self.timeline.now(now),
+            Message::Tick => {
+                self.timer.tick();
+                self.timer_string = self.timer.get_formatted_time();
+                if self.timer.timer_just_ended() {
+                    return cosmic::command::message(Message::SetStayAwake(false));
+                }
+            }
+            Message::SetTimer(minutes) => {
+                self.timer.start(Duration::from_secs(minutes * 60));
+                return cosmic::command::message(Message::SetStayAwake(true));
+            }
+            Message::CustomDuration => {
+                self.custom_duration_window = Some(CustomDurationWindow::default());
+            }
+            Message::CustomDurationBack => {
+                self.custom_duration_window = None;
+            }
+            Message::EnterCustomDuration(input) => {
+                let custom_duration_state = self
+                    .custom_duration_window
+                    .as_mut()
+                    .expect("in custom duration window");
+                if input.is_empty() || input.parse::<u32>().is_ok() {
+                    custom_duration_state.minutes_text = input;
+                }
+            }
+            Message::CustomDurationStart => {
+                let custom_duration_state = self
+                    .custom_duration_window
+                    .as_ref()
+                    .expect("in custom duration window");
+                if custom_duration_state.minutes_text.is_empty() {
+                    return Command::none();
+                }
+                let minutes = custom_duration_state.minutes_text.parse::<u64>().unwrap();
+                self.timer.start(Duration::from_secs(minutes * 60));
+                self.custom_duration_window = None;
+                return cosmic::command::message(Message::SetStayAwake(true));
+            }
         }
         Command::none()
     }
@@ -125,21 +185,59 @@ impl cosmic::Application for Window {
     }
 
     fn view_window(&self, _id: Id) -> Element<Self::Message> {
+        static PRESET_MINUTES: LazyLock<Vec<(String, u64)>> = LazyLock::new(|| {
+            vec![
+                (fl!("fifteen-minutes"), 1),
+                (fl!("thirty-minutes"), 30),
+                (fl!("one-hour"), 60 * 1),
+                (fl!("two-hours"), 60 * 2),
+                (fl!("four-hours"), 60 * 4),
+            ]
+        });
         let mut content = Column::new();
-        content = content.push(
-            container(
-                anim!(
-                    SHOW_MEDIA_CONTROLS,
-                    &self.timeline,
-                    Some(fl!("stay-awake").to_string()),
-                    self.is_stay_awake,
-                    Message::Caffeine,
-                )
-                .text_size(14)
-                .width(Length::Fill),
-            )
-            .padding([8, 24]),
-        );
+        let mut stay_awake_text = fl!("stay-awake").to_string();
+        if let Some(formatted_time) = &self.timer_string {
+            stay_awake_text.push_str(&format!(" ({formatted_time})"))
+        }
+        content = content.push(padded_control(row![anim!(
+            STAY_AWAKE_CONTROLS,
+            &self.timeline,
+            stay_awake_text,
+            self.is_stay_awake,
+            Message::Caffeine
+        )]));
+        let Spacing {
+            space_xxs, space_s, ..
+        } = theme::active().cosmic().spacing;
+        content = content
+            .push(padded_control(divider::horizontal::default()).padding([space_xxs, space_s]));
+        if let Some(custom_duration_state) = &self.custom_duration_window {
+            content = content.push(
+                text_input(fl!("minutes"), &custom_duration_state.minutes_text)
+                    .on_input(Message::EnterCustomDuration)
+                    .apply(padded_control)
+                    .width(Length::Fill),
+            );
+            content = content.push(
+                applet::menu_button(widget::text(fl!("start").to_string()))
+                    .on_press(Message::CustomDurationStart),
+            );
+            content = content.push(
+                applet::menu_button(widget::text(fl!("back").to_string()))
+                    .on_press(Message::CustomDurationBack),
+            );
+        } else {
+            for (translation, minutes) in PRESET_MINUTES.iter() {
+                content = content.push(
+                    applet::menu_button(widget::text(translation.to_string()))
+                        .on_press(Message::SetTimer(*minutes)),
+                );
+            }
+            content = content.push(
+                applet::menu_button(widget::text(fl!("custom-duration").to_string()))
+                    .on_press(Message::CustomDuration),
+            );
+        }
         self.core
             .applet
             .popup_container(content.padding([9, 0]))
@@ -147,9 +245,14 @@ impl cosmic::Application for Window {
     }
 
     fn subscription(&self) -> cosmic::iced::Subscription<Self::Message> {
-        self.timeline
+        let mut subs = vec![self
+            .timeline
             .as_subscription()
-            .map(|(_, now)| Message::Frame(now))
+            .map(|(_, now)| Message::Frame(now))];
+        if self.timer.is_started() {
+            subs.push(cosmic::iced::time::every(Duration::from_millis(500)).map(|_| Message::Tick));
+        }
+        Subscription::batch(subs)
     }
 
     fn style(&self) -> Option<<Theme as application::StyleSheet>::Style> {
