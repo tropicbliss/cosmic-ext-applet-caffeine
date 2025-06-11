@@ -22,3 +22,8 @@ just build-release
 sudo just install
 ```
 
+If you are using a Debian-based distro, you may need to install some other dependencies first
+```bash
+sudo apt install cargo cmake just libexpat1-dev libfontconfig-dev libfreetype-dev libxkbcommon-dev pkgconf
+```
+
