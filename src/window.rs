@@ -177,9 +177,17 @@ impl cosmic::Application for Window {
     }
 
     fn view(&self) -> Element<Self::Message> {
+        const ICON_EMPTY: &str = "net.tropicbliss.CosmicExtAppletCaffeine-empty";
+        const ICON_FULL: &str = "net.tropicbliss.CosmicExtAppletCaffeine-full";
+
+        let icon = if self.caffeine.is_caffeinated() {
+            ICON_FULL
+        } else {
+            ICON_EMPTY
+        };
         self.core
             .applet
-            .icon_button(ID)
+            .icon_button(icon)
             .on_press(Message::TogglePopup)
             .into()
     }

@@ -15,9 +15,13 @@ desktop := APPID + '.desktop'
 desktop-src := 'res' / desktop
 desktop-dst := clean(rootdir / prefix) / 'share' / 'applications' / desktop
 
-icon := APPID + '.svg'
-icon-src := 'res' / icon
-icon-dst := clean(rootdir / prefix) / 'share' / 'icons' / 'hicolor' / 'scalable' / 'apps' / icon
+icon-empty := APPID + '-empty.svg'
+icon-empty-src := 'res' / icon-empty
+icon-empty-dst := clean(rootdir / prefix) / 'share' / 'icons' / 'hicolor' / 'scalable' / 'apps' / icon-empty
+
+icon-full := APPID + '-full.svg'
+icon-full-src := 'res' / icon-full
+icon-full-dst := clean(rootdir / prefix) / 'share' / 'icons' / 'hicolor' / 'scalable' / 'apps' / icon-full
 
 # Default recipe which runs `just build-release`
 default: build-release
@@ -37,8 +41,12 @@ build-release *args: (build-debug '--release' args)
 install:
     install -Dm0755 {{bin-src}} {{bin-dst}}
     install -Dm0644 {{desktop-src}} {{desktop-dst}}
-    install -Dm0644 {{icon-src}} {{icon-dst}}
+    install -Dm0644 {{icon-empty-src}} {{icon-empty-dst}}
+    install -Dm0644 {{icon-full-src}} {{icon-full-dst}}
 
 # Uninstalls installed files
 uninstall:
     rm {{bin-dst}}
+    rm {{desktop-dst}}
+    rm {{icon-empty-dst}}
+    rm {{icon-full-dst}}
