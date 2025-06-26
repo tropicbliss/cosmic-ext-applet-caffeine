@@ -14,5 +14,5 @@ fn main() -> cosmic::iced::Result {
     tracing::info!("Starting caffeine applet with version {VERSION}");
 
     localize();
-    cosmic::applet::run::<Window>(false, ())
+    cosmic::applet::run::<Window>(())
 }

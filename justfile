@@ -39,6 +39,7 @@ build-release *args: (build-debug '--release' args)
 
 # Installs files
 install:
+    rm -rf ~/.config/net.tropicbliss.cosmicextappletcaffeine
     install -Dm0755 {{bin-src}} {{bin-dst}}
     install -Dm0644 {{desktop-src}} {{desktop-dst}}
     install -Dm0644 {{icon-empty-src}} {{icon-empty-dst}}

@@ -1,58 +1,79 @@
-use std::sync::LazyLock;
-use std::time::Duration;
+use std::{sync::LazyLock, time::Duration};
 
-use cosmic::app::Core;
-use cosmic::applet::{self, padded_control};
-use cosmic::cosmic_theme::Spacing;
-use cosmic::iced::wayland::popup::{destroy_popup, get_popup};
-use cosmic::iced::window::Id;
-use cosmic::iced::{widget, Command, Length, Limits, Subscription};
-use cosmic::iced_runtime::core::window;
-use cosmic::iced_style::application;
-use cosmic::iced_widget::{row, Column};
-use cosmic::widget::{divider, text_input};
-use cosmic::{theme, Apply, Element, Theme};
-use cosmic_time::once_cell::sync::Lazy;
-use cosmic_time::{anim, chain, id, Instant, Timeline};
+use cosmic::{
+    Element, Task, app,
+    applet::{menu_button, padded_control},
+    cosmic_theme::Spacing,
+    iced::{self, Alignment, Limits, Subscription, widget::row, window},
+    theme,
+    widget::{self, Column, divider, text},
+};
+use cosmic_time::{Instant, Timeline, anim, chain, id, once_cell::sync::Lazy};
+use iced::{
+    platform_specific::shell::wayland::commands::popup::{destroy_popup, get_popup},
+    widget::container,
+};
+use serde::{Deserialize, Serialize};
 
 use crate::caffeine::Caffeine;
 use crate::fl;
 use crate::timer::Timer;
 
 static STAY_AWAKE_CONTROLS: Lazy<id::Toggler> = Lazy::new(id::Toggler::unique);
+static REMEMBER_STATE_CONTROLS: Lazy<id::Toggler> = Lazy::new(id::Toggler::unique);
 
 const ID: &str = "net.tropicbliss.CosmicExtAppletCaffeine";
 
 #[derive(Default)]
 pub struct Window {
-    core: Core,
-    popup: Option<Id>,
+    core: cosmic::app::Core,
+    popup: Option<window::Id>,
     caffeine: Caffeine,
-    is_stay_awake: bool,
     timeline: Timeline,
     timer: Timer,
     timer_string: Option<String>,
-    custom_duration_window: Option<CustomDurationWindow>,
+    secondary_window: Option<SecondaryWindow>,
+    persistent_state: Config,
 }
 
-#[derive(Default)]
-pub struct CustomDurationWindow {
-    minutes_text: String,
+enum SecondaryWindow {
+    CustomDuration { minutes_text: String },
+    Settings,
+}
+
+#[derive(Debug, Serialize, Deserialize, Default, Clone)]
+struct Config {
+    remember_state: bool,
+    custom_duration_text_box: String,
+    timer_state: Option<TimerDuration>,
+}
+
+#[derive(Default, Debug, Serialize, Deserialize, Clone)]
+enum TimerDuration {
+    #[default]
+    Infinite,
+    CustomSeconds(u64),
+}
+
+#[derive(Debug, Serialize, Deserialize, Default)]
+struct State {
+    is_stay_awake: bool,
 }
 
 #[derive(Clone, Debug)]
 pub enum Message {
     TogglePopup,
-    PopupClosed(Id),
-    Caffeine(chain::Toggler, bool),
+    PopupClosed(window::Id),
+    ToggleCaffeine(chain::Toggler, bool),
     Frame(Instant),
-    SetStayAwake(bool),
     Tick,
     SetTimer(u64),
     CustomDuration,
-    CustomDurationBack,
+    SecondaryWindowBack,
     EnterCustomDuration(String),
     CustomDurationStart,
+    RememberStateToggle(chain::Toggler, bool),
+    Settings,
 }
 
 impl cosmic::Application for Window {
@@ -61,119 +82,139 @@ impl cosmic::Application for Window {
     type Message = Message;
     const APP_ID: &'static str = ID;
 
-    fn core(&self) -> &Core {
+    fn core(&self) -> &cosmic::app::Core {
         &self.core
     }
 
-    fn core_mut(&mut self) -> &mut Core {
+    fn core_mut(&mut self) -> &mut cosmic::app::Core {
         &mut self.core
     }
 
-    fn init(
-        core: Core,
-        _flags: Self::Flags,
-    ) -> (Self, Command<cosmic::app::Message<Self::Message>>) {
-        let window = Window {
+    fn style(&self) -> Option<cosmic::iced_runtime::Appearance> {
+        Some(cosmic::applet::style())
+    }
+
+    fn init(core: cosmic::app::Core, _flags: ()) -> (Self, app::Task<Message>) {
+        let config: Config =
+            confy::load(ID, None).expect("config file should be in a valid format");
+        let mut window = Window {
             core,
+            persistent_state: config.clone(),
             ..Default::default()
         };
-        (window, Command::none())
+        if config.remember_state {
+            if let Some(timer_duration) = config.timer_state {
+                if let TimerDuration::CustomSeconds(secs) = timer_duration {
+                    window.timer.start(Duration::from_secs(secs));
+                }
+                window.set_stay_awake(true);
+            }
+        }
+        (window, Task::none())
     }
 
     fn on_close_requested(&self, id: window::Id) -> Option<Message> {
         Some(Message::PopupClosed(id))
     }
 
-    fn update(&mut self, message: Self::Message) -> Command<cosmic::app::Message<Self::Message>> {
+    fn update(&mut self, message: Self::Message) -> app::Task<Message> {
         match message {
             Message::TogglePopup => {
                 return if let Some(p) = self.popup.take() {
                     destroy_popup(p)
                 } else {
-                    let new_id = Id::unique();
+                    let new_id = window::Id::unique();
                     self.popup.replace(new_id);
                     self.timeline = Timeline::new();
-                    let mut popup_settings =
-                        self.core
-                            .applet
-                            .get_popup_settings(Id::MAIN, new_id, None, None, None);
+                    let mut popup_settings = self.core.applet.get_popup_settings(
+                        self.core.main_window_id().unwrap(),
+                        new_id,
+                        None,
+                        None,
+                        None,
+                    );
                     popup_settings.positioner.size_limits =
                         Limits::NONE.max_width(372.0).max_height(1080.0);
                     get_popup(popup_settings)
                 };
             }
             Message::PopupClosed(id) => {
-                self.custom_duration_window = None;
+                self.secondary_window = None;
                 if self.popup.as_ref() == Some(&id) {
                     self.popup = None;
                 }
             }
-            Message::SetStayAwake(is_stay_awake) => {
-                tracing::info!(
-                    "{} stay awake",
-                    if is_stay_awake {
-                        "Enabling"
-                    } else {
-                        "Disabling"
-                    }
-                );
-                if let Err(e) = if is_stay_awake {
-                    self.caffeine.caffeinate()
-                } else {
-                    self.timer.cancel();
-                    self.timer_string = None;
-                    self.caffeine.decaffeinate()
-                } {
-                    tracing::error!("Failed to stay awake: {e:?}");
-                }
-                self.is_stay_awake = self.caffeine.is_caffeinated();
-            }
-            Message::Caffeine(chain, is_stay_awake) => {
+            Message::ToggleCaffeine(chain, is_stay_awake) => {
                 self.timeline.set_chain(chain).start();
-                return cosmic::command::message(Message::SetStayAwake(is_stay_awake));
+                self.persistent_state.timer_state = if is_stay_awake {
+                    Some(TimerDuration::Infinite)
+                } else {
+                    None
+                };
+                self.update_config();
+                self.set_stay_awake(is_stay_awake);
             }
             Message::Frame(now) => self.timeline.now(now),
             Message::Tick => {
                 self.timer.tick();
                 self.timer_string = self.timer.get_formatted_time();
                 if self.timer.timer_just_ended() {
-                    return cosmic::command::message(Message::SetStayAwake(false));
+                    self.persistent_state.timer_state = None;
+                    self.update_config();
+                    self.set_stay_awake(false);
                 }
             }
             Message::SetTimer(minutes) => {
-                self.timer.start(Duration::from_secs(minutes * 60));
-                return cosmic::command::message(Message::SetStayAwake(true));
+                let seconds = minutes * 60;
+                self.timer.start(Duration::from_secs(seconds));
+                self.persistent_state.timer_state = Some(TimerDuration::CustomSeconds(seconds));
+                self.update_config();
+                self.set_stay_awake(true);
             }
             Message::CustomDuration => {
-                self.custom_duration_window = Some(CustomDurationWindow::default());
+                self.secondary_window = Some(SecondaryWindow::CustomDuration {
+                    minutes_text: self.persistent_state.custom_duration_text_box.clone(),
+                });
             }
-            Message::CustomDurationBack => {
-                self.custom_duration_window = None;
+            Message::SecondaryWindowBack => {
+                self.secondary_window = None;
             }
             Message::EnterCustomDuration(input) => {
-                let custom_duration_state = self
-                    .custom_duration_window
-                    .as_mut()
-                    .expect("in custom duration window");
-                if input.is_empty() || input.parse::<u32>().is_ok() {
-                    custom_duration_state.minutes_text = input;
+                if let Some(SecondaryWindow::CustomDuration { minutes_text }) =
+                    &mut self.secondary_window
+                {
+                    if input.is_empty() || input.parse::<u32>().is_ok() {
+                        *minutes_text = input.clone();
+                        self.persistent_state.custom_duration_text_box = input;
+                        self.update_config();
+                    }
                 }
             }
             Message::CustomDurationStart => {
-                let custom_duration_state = self
-                    .custom_duration_window
-                    .as_ref()
-                    .expect("in custom duration window");
-                if custom_duration_state.minutes_text.is_empty() {
-                    return Command::none();
+                if let Some(SecondaryWindow::CustomDuration { minutes_text }) =
+                    &self.secondary_window
+                {
+                    if minutes_text.is_empty() {
+                        return Task::none();
+                    }
+                    let seconds = minutes_text.parse::<u64>().expect("valid u64 minutes text") * 60;
+                    self.timer.start(Duration::from_secs(seconds));
+                    self.secondary_window = None;
+                    self.persistent_state.timer_state = Some(TimerDuration::CustomSeconds(seconds));
+                    self.update_config();
+                    self.set_stay_awake(true);
                 }
-                let minutes = custom_duration_state.minutes_text.parse::<u64>().unwrap();
-                self.timer.start(Duration::from_secs(minutes * 60));
-                self.custom_duration_window = None;
-                return cosmic::command::message(Message::SetStayAwake(true));
+            }
+            Message::RememberStateToggle(chain, remember_state) => {
+                self.timeline.set_chain(chain).start();
+                self.persistent_state.remember_state = remember_state;
+                self.update_config();
+            }
+            Message::Settings => {
+                self.secondary_window = Some(SecondaryWindow::Settings);
             }
         }
-        Command::none()
+        Task::none()
     }
 
     fn view(&self) -> Element<Self::Message> {
@@ -192,10 +233,10 @@ impl cosmic::Application for Window {
             .into()
     }
 
-    fn view_window(&self, _id: Id) -> Element<Self::Message> {
+    fn view_window(&self, _id: window::Id) -> Element<Message> {
         static PRESET_MINUTES: LazyLock<Vec<(String, u64)>> = LazyLock::new(|| {
             vec![
-                (fl!("fifteen-minutes"), 1),
+                (fl!("fifteen-minutes"), 15),
                 (fl!("thirty-minutes"), 30),
                 (fl!("one-hour"), 60 * 1),
                 (fl!("two-hours"), 60 * 2),
@@ -203,74 +244,120 @@ impl cosmic::Application for Window {
             ]
         });
         let mut content = Column::new();
-        let mut stay_awake_text = fl!("stay-awake").to_string();
-        if let Some(formatted_time) = &self.timer_string {
-            stay_awake_text.push_str(&format!(" ({formatted_time})"))
-        }
-        content = content.push(padded_control(row![anim!(
-            STAY_AWAKE_CONTROLS,
-            &self.timeline,
-            stay_awake_text,
-            self.is_stay_awake,
-            Message::Caffeine
-        )]));
         let Spacing {
             space_xxs, space_s, ..
         } = theme::active().cosmic().spacing;
-        content = content
-            .push(padded_control(divider::horizontal::default()).padding([space_xxs, space_s]));
-        if let Some(custom_duration_state) = &self.custom_duration_window {
-            content = content.push(
-                text_input(fl!("minutes"), &custom_duration_state.minutes_text)
-                    .on_input(Message::EnterCustomDuration)
-                    .apply(padded_control)
-                    .width(Length::Fill),
-            );
-            content = content.push(
-                applet::menu_button(widget::text(fl!("start").to_string()))
-                    .on_press(Message::CustomDurationStart),
-            );
-            content = content.push(
-                applet::menu_button(widget::text(fl!("back").to_string()))
-                    .on_press(Message::CustomDurationBack),
-            );
-        } else {
-            for (translation, minutes) in PRESET_MINUTES.iter() {
+        if matches!(
+            &self.secondary_window,
+            Some(SecondaryWindow::CustomDuration { .. }) | None
+        ) {
+            let mut stay_awake_text = fl!("stay-awake").to_string();
+            if let Some(formatted_time) = &self.timer_string {
+                stay_awake_text.push_str(&format!(" ({formatted_time})"))
+            }
+            content = content.push(padded_control(row![anim!(
+                STAY_AWAKE_CONTROLS,
+                &self.timeline,
+                stay_awake_text,
+                self.caffeine.is_caffeinated(),
+                Message::ToggleCaffeine
+            )]));
+            content = content
+                .push(padded_control(divider::horizontal::default()).padding([space_xxs, space_s]));
+        }
+        match &self.secondary_window {
+            Some(SecondaryWindow::CustomDuration { minutes_text }) => {
+                content = content.push(padded_control(
+                    widget::text_input("", minutes_text)
+                        .label(fl!("minutes"))
+                        .on_input(Message::EnterCustomDuration),
+                ));
                 content = content.push(
-                    applet::menu_button(widget::text(translation.to_string()))
-                        .on_press(Message::SetTimer(*minutes)),
+                    menu_button(text::body(fl!("start"))).on_press(Message::CustomDurationStart),
                 );
             }
-            content = content.push(
-                applet::menu_button(widget::text(fl!("custom-duration").to_string()))
-                    .on_press(Message::CustomDuration),
-            );
+            Some(SecondaryWindow::Settings) => {
+                content = content.push(padded_control(row![anim!(
+                    REMEMBER_STATE_CONTROLS,
+                    &self.timeline,
+                    fl!("remember-state"),
+                    self.persistent_state.remember_state,
+                    Message::RememberStateToggle
+                )]));
+                content = content.push(
+                    padded_control(divider::horizontal::default()).padding([space_xxs, space_s]),
+                );
+            }
+            None => {
+                for (translation, minutes) in PRESET_MINUTES.iter() {
+                    content = content.push(
+                        menu_button(text::body(translation)).on_press(Message::SetTimer(*minutes)),
+                    );
+                }
+                content = content.push(
+                    menu_button(text::body(fl!("custom-duration")))
+                        .on_press(Message::CustomDuration),
+                );
+                content = content.push(
+                    padded_control(divider::horizontal::default()).padding([space_xxs, space_s]),
+                );
+                content = content
+                    .push(menu_button(text::body(fl!("settings"))).on_press(Message::Settings));
+            }
         }
-        self.core
-            .applet
-            .popup_container(content.padding([9, 0]))
-            .into()
+        if matches!(
+            &self.secondary_window,
+            Some(SecondaryWindow::CustomDuration { .. } | SecondaryWindow::Settings)
+        ) {
+            content = content
+                .push(menu_button(text::body(fl!("back"))).on_press(Message::SecondaryWindowBack));
+        }
+        content = content.align_x(Alignment::Start).padding([8, 0]);
+        self.core.applet.popup_container(container(content)).into()
     }
 
-    fn subscription(&self) -> cosmic::iced::Subscription<Self::Message> {
-        let mut subs = vec![self
-            .timeline
-            .as_subscription()
-            .map(|(_, now)| Message::Frame(now))];
+    fn subscription(&self) -> Subscription<Message> {
+        let mut subs = vec![
+            self.timeline
+                .as_subscription()
+                .map(|(_, now)| Message::Frame(now)),
+        ];
         if self.timer.is_started() {
             subs.push(cosmic::iced::time::every(Duration::from_millis(500)).map(|_| Message::Tick));
         }
         Subscription::batch(subs)
     }
 
-    fn style(&self) -> Option<<Theme as application::StyleSheet>::Style> {
-        Some(cosmic::applet::style())
-    }
-
-    fn on_app_exit(&mut self) -> Option<Self::Message> {
+    fn on_app_exit(&mut self) -> Option<Message> {
         if let Err(e) = self.caffeine.cleanup() {
             tracing::error!("Failed to exit gracefully: {e:?}");
         }
         None
+    }
+}
+
+impl Window {
+    fn update_config(&self) {
+        confy::store(ID, None, &self.persistent_state).expect("cannot modify config");
+    }
+
+    fn set_stay_awake(&mut self, is_stay_awake: bool) {
+        tracing::info!(
+            "{} stay awake",
+            if is_stay_awake {
+                "Enabling"
+            } else {
+                "Disabling"
+            }
+        );
+        if let Err(e) = if is_stay_awake {
+            self.caffeine.caffeinate()
+        } else {
+            self.timer.cancel();
+            self.timer_string = None;
+            self.caffeine.decaffeinate()
+        } {
+            tracing::error!("Failed to stay awake: {e:?}");
+        }
     }
 }

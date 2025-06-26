@@ -8,3 +8,5 @@ custom-duration = Custom Duration
 back = Back
 start = Start
 minutes = Minutes
+settings = Settings
+remember-state = Remember State
