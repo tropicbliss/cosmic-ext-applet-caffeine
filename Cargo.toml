@@ -24,3 +24,6 @@ serde = { version = "1.0.219", features = ["derive"] }
 git = "https://github.com/pop-os/libcosmic"
 default-features = false
 features = ["applet", "tokio", "wayland"]
+
+[patch."https://github.com/smithay/client-toolkit.git"]
+sctk = { package = "smithay-client-toolkit", version = "=0.19.2" }
