@@ -2866,14 +2866,14 @@
     {
         "type": "archive",
         "archive-type": "tar-gzip",
-        "url": "https://static.crates.io/crates/harfrust/harfrust-0.3.1.crate",
-        "sha256": "1f3fd23d35c2d8bcf34a1f0e9ea8c0ad263f0c8a9a47108eee23aac76e71645a",
-        "dest": "cargo/vendor/harfrust-0.3.1"
+        "url": "https://static.crates.io/crates/harfrust/harfrust-0.3.2.crate",
+        "sha256": "92c020db12c71d8a12a3fe7607873cade3a01a6287e29d540c8723276221b9d8",
+        "dest": "cargo/vendor/harfrust-0.3.2"
     },
     {
         "type": "inline",
-        "contents": "{\"package\": \"1f3fd23d35c2d8bcf34a1f0e9ea8c0ad263f0c8a9a47108eee23aac76e71645a\", \"files\": {}}",
-        "dest": "cargo/vendor/harfrust-0.3.1",
+        "contents": "{\"package\": \"92c020db12c71d8a12a3fe7607873cade3a01a6287e29d540c8723276221b9d8\", \"files\": {}}",
+        "dest": "cargo/vendor/harfrust-0.3.2",
         "dest-filename": ".cargo-checksum.json"
     },
     {
