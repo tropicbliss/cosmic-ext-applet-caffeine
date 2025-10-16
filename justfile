@@ -70,3 +70,8 @@ flatpak:
     echo 'directory = "vendor"' >> .cargo/config.toml
     just build-release --frozen --offline
     just prefix=/app install
+
+flatpak-local:
+    flatpak-builder --force-clean build-dir {{APPID}}.yml
+    flatpak-builder --user --install --force-clean build-dir {{APPID}}.yml
+    flatpak run {{APPID}}
