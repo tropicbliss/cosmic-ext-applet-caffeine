@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>net.tropicbliss.CosmicExtAppletCaffeine</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <content_rating type="oars-1.1" />
+  <update_contact>tropicbliss@protonmail.com</update_contact>
+  <url type="homepage">https://github.com/tropicbliss/cosmic-ext-applet-caffeine</url>
+  <url type="bugtracker">https://github.com/tropicbliss/cosmic-ext-applet-caffeine/issues</url>
+  <url type="contact">https://www.tropicbliss.net</url>
+  <url type="translate">https://github.com/tropicbliss/cosmic-ext-applet-caffeine/tree/main/i18n</url>
+  <name>Caffeine</name>
+  <summary>Caffeine Applet for the COSMIC™ desktop</summary>
+  <description>
+    <p>A lightweight system tray application that prevents your screen from going to sleep. Perfect for:</p>
+    <ul>
+        <li>presentations</li>
+        <li>watching videos</li>
+        <li>any situation where you need your display to stay active</li>
+    </ul>
+  </description>
+  <branding>
+    <color type="primary" scheme_preference="light">#eaeaff</color>
+    <color type="primary" scheme_preference="dark">#280c4b</color>
+  </branding>
+  <icon type="remote" height="256" width="256">https://raw.githubusercontent.com/tropicbliss/cosmic-ext-applet-caffeine/refs/heads/main/res/net.tropicbliss.CosmicExtAppletCaffeine-full.svg</icon>
+  <launchable type="desktop-id">net.tropicbliss.CosmicExtAppletCaffeine.desktop</launchable>
+  <releases>
+    <release version="0.1.6" date="2025-10-17">
+        <description>
+            <p>Flatpak support</p>
+            <ul>
+                <li>Added Flatpak support</li>
+                <li>Fixed a bug where the stay awake toggle doesn't visually change until the applet is re-opened</li>
+            </ul>
+        </description>
+    </release>
+  </releases>
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/tropicbliss/cosmic-ext-applet-caffeine/main/res/screenshot.png</image>
+      <caption>Main application interface</caption>
+    </screenshot>
+  </screenshots>
+  <categories>
+    <category>Utility</category>
+  </categories>
+  <requires>
+    <display_length compare="ge">360</display_length>
+  </requires>
+  <supports>
+    <control>keyboard</control>
+    <control>pointing</control>
+  </supports>
+  <provides>
+    <id>com.system76.CosmicApplication</id>
+    <binary>cosmic-ext-applet-caffeine</binary>
+  </provides>
+</component>

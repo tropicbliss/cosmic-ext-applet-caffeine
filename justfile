@@ -23,6 +23,10 @@ icon-full := APPID + '-full.svg'
 icon-full-src := 'res' / icon-full
 icon-full-dst := base-dir / 'share' / 'icons' / 'hicolor' / 'scalable' / 'apps' / icon-full
 
+metainfo := APPID + '.metainfo.xml'
+metainfo-src := 'res' / metainfo
+metainfo-dst := base-dir / 'share' / 'metainfo' / metainfo
+
 # Default recipe which runs `just build-release`
 default: build-release
 
@@ -44,6 +48,7 @@ install:
     install -Dm0644 {{desktop-src}} {{desktop-dst}}
     install -Dm0644 {{icon-empty-src}} {{icon-empty-dst}}
     install -Dm0644 {{icon-full-src}} {{icon-full-dst}}
+    install -Dm0644 {{metainfo-src}} {{metainfo-dst}}
 
 # Uninstalls installed files
 uninstall:
@@ -56,7 +61,7 @@ vendor-generate:
     python3 ./flatpak/flatpak-cargo-generator.py ./Cargo.lock -o ./flatpak/cargo-sources.json
 
 validate:
-    appstreamcli validate --pedantic --explain res/{{APPID}}.metainfo.xml
+    appstreamcli validate --pedantic --explain {{metainfo-src}}
 
 flatpak:
     #!/usr/bin/env bash
