@@ -4,3 +4,4 @@ flatpak-builder-tools/
 vendor/
 vendor.tar
 .flatpak-builder/
+build-dir/

@@ -41,8 +41,7 @@ modules:
   - name: cosmic-ext-applet-caffeine
     buildsystem: simple
     build-commands:
-      - just build-release --verbose --offline
-      - just prefix=/app install
+      - just flatpak
     sources:
       - type: git
         url: https://github.com/tropicbliss/cosmic-ext-applet-caffeine
