@@ -355,7 +355,7 @@ impl Window {
                 .and_then(|_| Ok(chain::Toggler::off(STAY_AWAKE_CONTROLS.clone(), 1.)))
         } {
             Ok(chain) if changed => self.timeline.set_chain(chain).start(),
-            Err(e) => tracing::error!("Failed to stay awake: {e:?}"),
+            Err(e) => panic!("{e:?}"),
             _ => {}
         }
     }
