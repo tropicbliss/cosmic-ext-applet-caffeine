@@ -1,29 +1,35 @@
 [package]
 name = "cosmic-ext-applet-caffeine"
-version = "0.1.5"
+version = "0.1.6"
 edition = "2024"
 
 [dependencies]
 cosmic-time = { git = "https://github.com/pop-os/cosmic-time", default-features = false, features = [
     "once_cell",
 ] }
-i18n-embed = { version = "0.15.3", features = [
+i18n-embed = { version = "0.16.0", features = [
     "fluent-system",
     "desktop-requester",
 ] }
-i18n-embed-fl = "0.9.3"
-rust-embed = "8.5.0"
-zbus = { version = "5.3.1", features = ["blocking-api"] }
-tracing = "0.1.41"
-tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
+i18n-embed-fl = "0.10"
+rust-embed = "8.7.2"
+zbus = { version = "5.12.0", features = ["blocking-api"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
 tracing-log = "0.2.0"
 confy = "1.0.0"
-serde = { version = "1.0.219", features = ["derive"] }
+serde = { version = "1.0.228", features = ["derive"] }
 
-[dependencies.libcosmic]
-git = "https://github.com/pop-os/libcosmic"
-default-features = false
-features = ["applet", "tokio", "wayland"]
+libcosmic = { git = "https://github.com/pop-os/libcosmic", default-features = false, features = [
+    "applet",
+    "tokio",
+    "wayland",
+] }
 
 [patch."https://github.com/smithay/client-toolkit.git"]
-sctk = { package = "smithay-client-toolkit", version = "=0.19.2" }
+sctk = { package = "smithay-client-toolkit", version = "0.20.0" }
+
+[profile.release]
+opt-level = 3
+panic = "abort"
+lto = "thin"

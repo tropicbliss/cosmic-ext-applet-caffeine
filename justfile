@@ -13,15 +13,15 @@ bin-dst := base-dir / 'bin' / name
 
 desktop := APPID + '.desktop'
 desktop-src := 'res' / desktop
-desktop-dst := clean(rootdir / prefix) / 'share' / 'applications' / desktop
+desktop-dst := base-dir / 'share' / 'applications' / desktop
 
 icon-empty := APPID + '-empty.svg'
 icon-empty-src := 'res' / icon-empty
-icon-empty-dst := clean(rootdir / prefix) / 'share' / 'icons' / 'hicolor' / 'scalable' / 'apps' / icon-empty
+icon-empty-dst := base-dir / 'share' / 'icons' / 'hicolor' / 'scalable' / 'apps' / icon-empty
 
 icon-full := APPID + '-full.svg'
 icon-full-src := 'res' / icon-full
-icon-full-dst := clean(rootdir / prefix) / 'share' / 'icons' / 'hicolor' / 'scalable' / 'apps' / icon-full
+icon-full-dst := base-dir / 'share' / 'icons' / 'hicolor' / 'scalable' / 'apps' / icon-full
 
 # Default recipe which runs `just build-release`
 default: build-release
@@ -51,3 +51,15 @@ uninstall:
     rm {{desktop-dst}}
     rm {{icon-empty-dst}}
     rm {{icon-full-dst}}
+
+validate:
+    appstreamcli validate --pedantic --explain res/{{APPID}}.metainfo.xml
+
+flatpak:
+    #!/usr/bin/env bash
+    python3 ./flatpak/flatpak-cargo-generator.py ./Cargo.lock -o ./flatpak/cargo-sources.json
+    mkdir -p .cargo
+    cargo vendor --sync Cargo.toml | head -n -1 > .cargo/config.toml
+    echo 'directory = "vendor"' >> .cargo/config.toml
+    just build-release --frozen --offline
+    just prefix=/app install

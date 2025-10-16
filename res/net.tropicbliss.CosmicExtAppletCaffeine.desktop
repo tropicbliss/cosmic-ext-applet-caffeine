@@ -1,7 +1,6 @@
 [Desktop Entry]
 Name=Caffeine
-Comment=A lightweight system tray application that prevents your screen from going to
-sleep
+Comment=A lightweight system tray application that prevents your screen from going to sleep
 Type=Application
 Exec=cosmic-ext-applet-caffeine
 Terminal=false

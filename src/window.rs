@@ -4,7 +4,7 @@ use cosmic::{
     Element, Task, app,
     applet::{menu_button, padded_control},
     cosmic_theme::Spacing,
-    iced::{self, Alignment, Limits, Subscription, widget::row, window},
+    iced::{self, Alignment, Subscription, window},
     theme,
     widget::{self, Column, divider, text},
 };
@@ -55,16 +55,11 @@ enum TimerDuration {
     CustomSeconds(u64),
 }
 
-#[derive(Debug, Serialize, Deserialize, Default)]
-struct State {
-    is_stay_awake: bool,
-}
-
 #[derive(Clone, Debug)]
 pub enum Message {
     TogglePopup,
     PopupClosed(window::Id),
-    ToggleCaffeine(chain::Toggler, bool),
+    ToggleCaffeine(bool),
     Frame(Instant),
     Tick,
     SetTimer(u64),
@@ -126,15 +121,13 @@ impl cosmic::Application for Window {
                     let new_id = window::Id::unique();
                     self.popup.replace(new_id);
                     self.timeline = Timeline::new();
-                    let mut popup_settings = self.core.applet.get_popup_settings(
+                    let popup_settings = self.core.applet.get_popup_settings(
                         self.core.main_window_id().unwrap(),
                         new_id,
                         None,
                         None,
                         None,
                     );
-                    popup_settings.positioner.size_limits =
-                        Limits::NONE.max_width(372.0).max_height(1080.0);
                     get_popup(popup_settings)
                 };
             }
@@ -144,8 +137,7 @@ impl cosmic::Application for Window {
                     self.popup = None;
                 }
             }
-            Message::ToggleCaffeine(chain, is_stay_awake) => {
-                self.timeline.set_chain(chain).start();
+            Message::ToggleCaffeine(is_stay_awake) => {
                 self.persistent_state.timer_state = if is_stay_awake {
                     Some(TimerDuration::Infinite)
                 } else {
@@ -217,7 +209,7 @@ impl cosmic::Application for Window {
         Task::none()
     }
 
-    fn view(&self) -> Element<Self::Message> {
+    fn view(&'_ self) -> Element<'_, Self::Message> {
         const ICON_EMPTY: &str = "net.tropicbliss.CosmicExtAppletCaffeine-empty";
         const ICON_FULL: &str = "net.tropicbliss.CosmicExtAppletCaffeine-full";
 
@@ -233,7 +225,7 @@ impl cosmic::Application for Window {
             .into()
     }
 
-    fn view_window(&self, _id: window::Id) -> Element<Message> {
+    fn view_window(&'_ self, _id: window::Id) -> Element<'_, Message> {
         static PRESET_MINUTES: LazyLock<Vec<(String, u64)>> = LazyLock::new(|| {
             vec![
                 (fl!("fifteen-minutes"), 15),
@@ -255,13 +247,13 @@ impl cosmic::Application for Window {
             if let Some(formatted_time) = &self.timer_string {
                 stay_awake_text.push_str(&format!(" ({formatted_time})"))
             }
-            content = content.push(padded_control(row![anim!(
+            content = content.push(padded_control(anim!(
                 STAY_AWAKE_CONTROLS,
                 &self.timeline,
                 stay_awake_text,
                 self.caffeine.is_caffeinated(),
-                Message::ToggleCaffeine
-            )]));
+                |_chain, enable| { Message::ToggleCaffeine(enable) }
+            )));
             content = content
                 .push(padded_control(divider::horizontal::default()).padding([space_xxs, space_s]));
         }
@@ -277,13 +269,13 @@ impl cosmic::Application for Window {
                 );
             }
             Some(SecondaryWindow::Settings) => {
-                content = content.push(padded_control(row![anim!(
+                content = content.push(padded_control(anim!(
                     REMEMBER_STATE_CONTROLS,
                     &self.timeline,
                     fl!("remember-state"),
                     self.persistent_state.remember_state,
                     Message::RememberStateToggle
-                )]));
+                )));
                 content = content.push(
                     padded_control(divider::horizontal::default()).padding([space_xxs, space_s]),
                 );
@@ -350,14 +342,21 @@ impl Window {
                 "Disabling"
             }
         );
-        if let Err(e) = if is_stay_awake {
-            self.caffeine.caffeinate()
+        let changed = self.caffeine.is_caffeinated() != is_stay_awake;
+        match if is_stay_awake {
+            self.caffeine
+                .caffeinate()
+                .and_then(|_| Ok(chain::Toggler::on(STAY_AWAKE_CONTROLS.clone(), 1.)))
         } else {
             self.timer.cancel();
             self.timer_string = None;
-            self.caffeine.decaffeinate()
+            self.caffeine
+                .decaffeinate()
+                .and_then(|_| Ok(chain::Toggler::off(STAY_AWAKE_CONTROLS.clone(), 1.)))
         } {
-            tracing::error!("Failed to stay awake: {e:?}");
+            Ok(chain) if changed => self.timeline.set_chain(chain).start(),
+            Err(e) => tracing::error!("Failed to stay awake: {e:?}"),
+            _ => {}
         }
     }
 }
