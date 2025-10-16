@@ -9,9 +9,6 @@ command: cosmic-ext-applet-caffeine
 finish-args:
   - --socket=wayland
   - --talk-name=org.freedesktop.ScreenSaver
-  - --device=dri
-  - --share=ipc
-  - --filesystem=xdg-config/cosmic:ro
 
 build-options:
   append-path: /usr/lib/sdk/rust-stable/bin
