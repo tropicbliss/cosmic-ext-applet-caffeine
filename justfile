@@ -52,12 +52,14 @@ uninstall:
     rm {{icon-empty-dst}}
     rm {{icon-full-dst}}
 
+vendor-generate:
+    python3 ./flatpak/flatpak-cargo-generator.py ./Cargo.lock -o ./flatpak/cargo-sources.json
+
 validate:
     appstreamcli validate --pedantic --explain res/{{APPID}}.metainfo.xml
 
 flatpak:
     #!/usr/bin/env bash
-    python3 ./flatpak/flatpak-cargo-generator.py ./Cargo.lock -o ./flatpak/cargo-sources.json
     mkdir -p .cargo
     cargo vendor --sync Cargo.toml | head -n -1 > .cargo/config.toml
     echo 'directory = "vendor"' >> .cargo/config.toml

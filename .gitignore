@@ -3,3 +3,4 @@ flatpak-builder-tools/
 .cargo/
 vendor/
 vendor.tar
+.flatpak-builder/
