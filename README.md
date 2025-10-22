@@ -27,3 +27,5 @@ If you are using a Debian-based distro, you may need to install some other depen
 sudo apt install cargo cmake just libexpat1-dev libfontconfig-dev libfreetype-dev libxkbcommon-dev pkgconf
 ```
 
+## Additional Credits
+- App indicator icon is taken from the [Caffeine GNOME extension](https://github.com/eonpatapon/gnome-shell-extension-caffeine) project and slightly modified

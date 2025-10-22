@@ -2,7 +2,7 @@
 <component type="desktop-application">
   <id>net.tropicbliss.CosmicExtAppletCaffeine</id>
   <metadata_license>CC0-1.0</metadata_license>
-  <project_license>MIT</project_license>
+  <project_license>GPL-2.0-only</project_license>
   <content_rating type="oars-1.1" />
   <update_contact>tropicbliss@protonmail.com</update_contact>
   <url type="homepage">https://github.com/tropicbliss/cosmic-ext-applet-caffeine</url>
@@ -26,7 +26,7 @@
   <icon type="remote" height="256" width="256">https://raw.githubusercontent.com/tropicbliss/cosmic-ext-applet-caffeine/refs/heads/main/res/net.tropicbliss.CosmicExtAppletCaffeine-full.svg</icon>
   <launchable type="desktop-id">net.tropicbliss.CosmicExtAppletCaffeine.desktop</launchable>
   <releases>
-    <release version="0.1.6" date="2025-10-17">
+    <release version="0.1.7" date="2025-10-23">
         <description>
             <p>Flatpak support</p>
             <ul>
