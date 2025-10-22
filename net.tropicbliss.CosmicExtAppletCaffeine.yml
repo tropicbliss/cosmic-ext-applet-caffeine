@@ -1,4 +1,4 @@
-app-id: net.tropicbliss.cosmic_ext_applet_caffeine
+app-id: net.tropicbliss.CosmicExtAppletCaffeine
 runtime: org.freedesktop.Platform
 runtime-version: '24.08'
 sdk: org.freedesktop.Sdk
