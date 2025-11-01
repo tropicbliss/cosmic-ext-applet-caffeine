@@ -60,6 +60,7 @@ pub enum Message {
     TogglePopup,
     PopupClosed(window::Id),
     ToggleCaffeine(bool),
+    IconPressed,
     Frame(Instant),
     Tick,
     SetTimer(u64),
@@ -146,6 +147,17 @@ impl cosmic::Application for Window {
                 self.update_config();
                 self.set_stay_awake(is_stay_awake);
             }
+            Message::IconPressed => {
+                // Toggle caffeine state on left-click (handled in view closure)
+                let new_state = !self.caffeine.is_caffeinated();
+                self.persistent_state.timer_state = if new_state {
+                    Some(TimerDuration::Infinite)
+                } else {
+                    None
+                };
+                self.update_config();
+                self.set_stay_awake(new_state);
+            }
             Message::Frame(now) => self.timeline.now(now),
             Message::Tick => {
                 self.timer.tick();
@@ -218,10 +230,17 @@ impl cosmic::Application for Window {
         } else {
             ICON_EMPTY
         };
+        let is_caffeinated = self.caffeine.is_caffeinated();
         self.core
             .applet
             .icon_button(icon)
-            .on_press(Message::TogglePopup)
+            .on_press_down(move |button| {
+                if button == iced::mouse::Button::Right {
+                    Message::TogglePopup
+                } else {
+                    Message::ToggleCaffeine(!is_caffeinated)
+                }
+            })
             .into()
     }
 
