@@ -57,7 +57,6 @@ enum TimerDuration {
 
 #[derive(Clone, Debug)]
 pub enum Message {
-    TogglePopup,
     PopupClosed(window::Id),
     ToggleCaffeine(bool),
     IconPressed(mouse::Button),
@@ -115,23 +114,6 @@ impl cosmic::Application for Window {
 
     fn update(&mut self, message: Self::Message) -> app::Task<Message> {
         match message {
-            Message::TogglePopup => {
-                return if let Some(p) = self.popup.take() {
-                    destroy_popup(p)
-                } else {
-                    let new_id = window::Id::unique();
-                    self.popup.replace(new_id);
-                    self.timeline = Timeline::new();
-                    let popup_settings = self.core.applet.get_popup_settings(
-                        self.core.main_window_id().unwrap(),
-                        new_id,
-                        None,
-                        None,
-                        None,
-                    );
-                    get_popup(popup_settings)
-                };
-            }
             Message::PopupClosed(id) => {
                 self.secondary_window = None;
                 if self.popup.as_ref() == Some(&id) {
