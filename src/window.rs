@@ -4,9 +4,9 @@ use cosmic::{
     Element, Task, app,
     applet::{menu_button, padded_control},
     cosmic_theme::Spacing,
-    iced::{self, Alignment, Subscription, window},
+    iced::{self, Alignment, Subscription, window, mouse},
     theme,
-    widget::{self, Column, divider, text},
+    widget::{self, Column, divider, text, mouse_area},
 };
 use cosmic_time::{Instant, Timeline, anim, chain, id, once_cell::sync::Lazy};
 use iced::{
@@ -57,9 +57,9 @@ enum TimerDuration {
 
 #[derive(Clone, Debug)]
 pub enum Message {
-    TogglePopup,
     PopupClosed(window::Id),
     ToggleCaffeine(bool),
+    IconPressed(mouse::Button),
     Frame(Instant),
     Tick,
     SetTimer(u64),
@@ -114,23 +114,6 @@ impl cosmic::Application for Window {
 
     fn update(&mut self, message: Self::Message) -> app::Task<Message> {
         match message {
-            Message::TogglePopup => {
-                return if let Some(p) = self.popup.take() {
-                    destroy_popup(p)
-                } else {
-                    let new_id = window::Id::unique();
-                    self.popup.replace(new_id);
-                    self.timeline = Timeline::new();
-                    let popup_settings = self.core.applet.get_popup_settings(
-                        self.core.main_window_id().unwrap(),
-                        new_id,
-                        None,
-                        None,
-                        None,
-                    );
-                    get_popup(popup_settings)
-                };
-            }
             Message::PopupClosed(id) => {
                 self.secondary_window = None;
                 if self.popup.as_ref() == Some(&id) {
@@ -145,6 +128,43 @@ impl cosmic::Application for Window {
                 };
                 self.update_config();
                 self.set_stay_awake(is_stay_awake);
+            }
+            Message::IconPressed(button) => {
+                // Handle different mouse button clicks
+                match button {
+                    mouse::Button::Right => {
+                        // Right-click opens the popup menu
+                        return if let Some(p) = self.popup.take() {
+                            destroy_popup(p)
+                        } else {
+                            let new_id = window::Id::unique();
+                            self.popup.replace(new_id);
+                            self.timeline = Timeline::new();
+                            let popup_settings = self.core.applet.get_popup_settings(
+                                self.core.main_window_id().unwrap(),
+                                new_id,
+                                None,
+                                None,
+                                None,
+                            );
+                            get_popup(popup_settings)
+                        };
+                    }
+                    mouse::Button::Left => {
+                        // Left-click toggles caffeine state
+                        let new_state = !self.caffeine.is_caffeinated();
+                        self.persistent_state.timer_state = if new_state {
+                            Some(TimerDuration::Infinite)
+                        } else {
+                            None
+                        };
+                        self.update_config();
+                        self.set_stay_awake(new_state);
+                    }
+                    _ => {
+                        // Ignore other buttons
+                    }
+                }
             }
             Message::Frame(now) => self.timeline.now(now),
             Message::Tick => {
@@ -218,10 +238,10 @@ impl cosmic::Application for Window {
         } else {
             ICON_EMPTY
         };
-        self.core
-            .applet
-            .icon_button(icon)
-            .on_press(Message::TogglePopup)
+        
+        mouse_area(self.core.applet.icon_button(icon))
+            .on_press(Message::IconPressed(mouse::Button::Left))
+            .on_right_press(Message::IconPressed(mouse::Button::Right))
             .into()
     }
 
