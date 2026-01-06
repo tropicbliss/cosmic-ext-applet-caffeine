@@ -1,0 +1,12 @@
+stay-awake = 保持唤醒
+fifteen-minutes = 15分钟
+thirty-minutes = 30分钟
+one-hour = 1小时
+two-hours = 2小时
+four-hours = 4小时
+custom-duration = 自定义时长
+back = 返回
+start = 开始
+minutes = 分钟
+settings = 设置
+remember-state = 记住状态
