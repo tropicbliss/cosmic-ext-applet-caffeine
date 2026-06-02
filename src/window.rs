@@ -90,8 +90,7 @@ impl cosmic::Application for Window {
     }
 
     fn init(core: cosmic::app::Core, _flags: ()) -> (Self, app::Task<Message>) {
-        let config: Config =
-            confy::load(ID, None).expect("config file should be in a valid format");
+        let config: Config = confy::load(ID, None).unwrap_or_default();
         let mut window = Window {
             core,
             persistent_state: config.clone(),
@@ -133,21 +132,22 @@ impl cosmic::Application for Window {
                 // Handle different mouse button clicks
                 match button {
                     mouse::Button::Right => {
-                        // Right-click opens the popup menu
                         return if let Some(p) = self.popup.take() {
                             destroy_popup(p)
-                        } else {
+                        } else if let Some(main_id) = self.core.main_window_id() {
                             let new_id = window::Id::unique();
                             self.popup.replace(new_id);
                             self.timeline = Timeline::new();
                             let popup_settings = self.core.applet.get_popup_settings(
-                                self.core.main_window_id().unwrap(),
+                                main_id,
                                 new_id,
                                 None,
                                 None,
                                 None,
                             );
                             get_popup(popup_settings)
+                        } else {
+                            Task::none()
                         };
                     }
                     mouse::Button::Left => {
@@ -209,7 +209,7 @@ impl cosmic::Application for Window {
                     if minutes_text.is_empty() {
                         return Task::none();
                     }
-                    let seconds = minutes_text.parse::<u64>().expect("valid u64 minutes text") * 60;
+                    let seconds = minutes_text.parse::<u64>().unwrap_or(0) * 60;
                     self.timer.start(Duration::from_secs(seconds));
                     self.secondary_window = None;
                     self.persistent_state.timer_state = Some(TimerDuration::CustomSeconds(seconds));
@@ -350,7 +350,9 @@ impl cosmic::Application for Window {
 
 impl Window {
     fn update_config(&self) {
-        confy::store(ID, None, &self.persistent_state).expect("cannot modify config");
+        if let Err(e) = confy::store(ID, None, &self.persistent_state) {
+            tracing::error!("Failed to save config: {e:?}");
+        }
     }
 
     fn set_stay_awake(&mut self, is_stay_awake: bool) {
