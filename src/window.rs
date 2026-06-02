@@ -1,7 +1,7 @@
 use std::{sync::LazyLock, time::Duration};
 
 use cosmic::{
-    Element, Task, app,
+    app, Element, Task,
     applet::{menu_button, padded_control},
     cosmic_theme::Spacing,
     iced::{self, Alignment, Subscription, window, mouse},
@@ -15,6 +15,7 @@ use iced::{
 };
 use serde::{Deserialize, Serialize};
 
+use crate::caffeine;
 use crate::caffeine::Caffeine;
 use crate::fl;
 use crate::timer::Timer;
@@ -69,6 +70,8 @@ pub enum Message {
     CustomDurationStart,
     RememberStateToggle(chain::Toggler, bool),
     Settings,
+    DbusInhibitResult(std::result::Result<u32, zbus::Error>),
+    DbusUninhibitResult,
 }
 
 impl cosmic::Application for Window {
@@ -96,15 +99,20 @@ impl cosmic::Application for Window {
             persistent_state: config.clone(),
             ..Default::default()
         };
-        if config.remember_state {
+        let task = if config.remember_state {
             if let Some(timer_duration) = config.timer_state {
                 if let TimerDuration::CustomSeconds(secs) = timer_duration {
                     window.timer.start(Duration::from_secs(secs));
                 }
-                window.set_stay_awake(true);
+                Task::perform(caffeine::inhibit(), Message::DbusInhibitResult)
+                    .map(cosmic::Action::App)
+            } else {
+                Task::none()
             }
-        }
-        (window, Task::none())
+        } else {
+            Task::none()
+        };
+        (window, task)
     }
 
     fn on_close_requested(&self, id: window::Id) -> Option<Message> {
@@ -126,10 +134,9 @@ impl cosmic::Application for Window {
                     None
                 };
                 self.update_config();
-                self.set_stay_awake(is_stay_awake);
+                return self.toggle_caffeine(is_stay_awake);
             }
             Message::IconPressed(button) => {
-                // Handle different mouse button clicks
                 match button {
                     mouse::Button::Right => {
                         return if let Some(p) = self.popup.take() {
@@ -151,7 +158,6 @@ impl cosmic::Application for Window {
                         };
                     }
                     mouse::Button::Left => {
-                        // Left-click toggles caffeine state
                         let new_state = !self.caffeine.is_caffeinated();
                         self.persistent_state.timer_state = if new_state {
                             Some(TimerDuration::Infinite)
@@ -159,12 +165,22 @@ impl cosmic::Application for Window {
                             None
                         };
                         self.update_config();
-                        self.set_stay_awake(new_state);
+                        return self.toggle_caffeine(new_state);
                     }
-                    _ => {
-                        // Ignore other buttons
-                    }
+                    _ => {}
                 }
+            }
+            Message::DbusInhibitResult(Ok(cookie)) => {
+                self.caffeine.set_cookie(cookie);
+                let chain = chain::Toggler::on(STAY_AWAKE_CONTROLS.clone(), 1.);
+                self.timeline.set_chain(chain).start();
+            }
+            Message::DbusInhibitResult(Err(e)) => {
+                tracing::error!("Failed to inhibit screensaver: {e:?}");
+            }
+            Message::DbusUninhibitResult => {
+                let chain = chain::Toggler::off(STAY_AWAKE_CONTROLS.clone(), 1.);
+                self.timeline.set_chain(chain).start();
             }
             Message::Frame(now) => self.timeline.now(now),
             Message::Tick => {
@@ -173,7 +189,7 @@ impl cosmic::Application for Window {
                 if self.timer.timer_just_ended() {
                     self.persistent_state.timer_state = None;
                     self.update_config();
-                    self.set_stay_awake(false);
+                    return self.toggle_caffeine(false);
                 }
             }
             Message::SetTimer(minutes) => {
@@ -181,7 +197,7 @@ impl cosmic::Application for Window {
                 self.timer.start(Duration::from_secs(seconds));
                 self.persistent_state.timer_state = Some(TimerDuration::CustomSeconds(seconds));
                 self.update_config();
-                self.set_stay_awake(true);
+                return self.toggle_caffeine(true);
             }
             Message::CustomDuration => {
                 self.secondary_window = Some(SecondaryWindow::CustomDuration {
@@ -214,7 +230,7 @@ impl cosmic::Application for Window {
                     self.secondary_window = None;
                     self.persistent_state.timer_state = Some(TimerDuration::CustomSeconds(seconds));
                     self.update_config();
-                    self.set_stay_awake(true);
+                    return self.toggle_caffeine(true);
                 }
             }
             Message::RememberStateToggle(chain, remember_state) => {
@@ -341,9 +357,7 @@ impl cosmic::Application for Window {
     }
 
     fn on_app_exit(&mut self) -> Option<Message> {
-        if let Err(e) = self.caffeine.cleanup() {
-            tracing::error!("Failed to exit gracefully: {e:?}");
-        }
+        self.caffeine.take_cookie();
         None
     }
 }
@@ -355,30 +369,27 @@ impl Window {
         }
     }
 
-    fn set_stay_awake(&mut self, is_stay_awake: bool) {
+    fn toggle_caffeine(&mut self, enable: bool) -> app::Task<Message> {
         tracing::info!(
             "{} stay awake",
-            if is_stay_awake {
-                "Enabling"
-            } else {
-                "Disabling"
-            }
+            if enable { "Enabling" } else { "Disabling" }
         );
-        let changed = self.caffeine.is_caffeinated() != is_stay_awake;
-        match if is_stay_awake {
-            self.caffeine
-                .caffeinate()
-                .and_then(|_| Ok(chain::Toggler::on(STAY_AWAKE_CONTROLS.clone(), 1.)))
+        if enable {
+            self.caffeine.clear_cookie();
+            Task::perform(caffeine::inhibit(), Message::DbusInhibitResult)
+                .map(cosmic::action::app)
         } else {
             self.timer.cancel();
             self.timer_string = None;
-            self.caffeine
-                .decaffeinate()
-                .and_then(|_| Ok(chain::Toggler::off(STAY_AWAKE_CONTROLS.clone(), 1.)))
-        } {
-            Ok(chain) if changed => self.timeline.set_chain(chain).start(),
-            Err(e) => tracing::error!("Failed to stay awake: {e:?}"),
-            _ => {}
+            if let Some(cookie) = self.caffeine.take_cookie() {
+                Task::perform(
+                    caffeine::uninhibit(cookie),
+                    |_| Message::DbusUninhibitResult,
+                )
+                .map(cosmic::action::app)
+            } else {
+                Task::none()
+            }
         }
     }
 }

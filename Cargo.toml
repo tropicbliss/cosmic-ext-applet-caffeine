@@ -13,7 +13,7 @@ i18n-embed = { version = "0.16.0", features = [
 ] }
 i18n-embed-fl = "0.10"
 rust-embed = "8.7.2"
-zbus = { version = "5.12.0", features = ["blocking-api"] }
+zbus = "5.12.0"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
 tracing-log = "0.2.0"

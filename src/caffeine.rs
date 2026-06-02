@@ -1,5 +1,4 @@
-use cosmic_time::once_cell::sync::Lazy;
-use zbus::{blocking::Connection, proxy, Result};
+use zbus::{Connection, proxy};
 
 #[proxy(
     interface = "org.freedesktop.ScreenSaver",
@@ -7,60 +6,46 @@ use zbus::{blocking::Connection, proxy, Result};
     default_path = "/ScreenSaver"
 )]
 trait ScreenSaver {
-    /// Inhibit the screensaver
-    fn inhibit(&self, application_name: &str, reason: &str) -> Result<u32>;
-
-    /// Uninhibit the screensaver using the cookie from a previous inhibit call
-    fn un_inhibit(&self, cookie: u32) -> Result<()>;
+    async fn inhibit(&self, application_name: &str, reason: &str) -> zbus::Result<u32>;
+    async fn un_inhibit(&self, cookie: u32) -> zbus::Result<()>;
 }
 
-fn get_proxy() -> Result<&'static ScreenSaverProxyBlocking<'static>> {
-    static PROXY: Lazy<Result<ScreenSaverProxyBlocking<'_>>> = Lazy::new(|| {
-        let conn = Connection::session()?;
-        Ok(ScreenSaverProxyBlocking::new(&conn)?)
-    });
-    let proxy = match PROXY.as_ref() {
-        Ok(proxy) => proxy,
-        Err(e) => return Err(e.clone()),
-    };
-    Ok(proxy)
+pub async fn inhibit() -> zbus::Result<u32> {
+    let connection = Connection::session().await?;
+    let proxy = ScreenSaverProxy::new(&connection).await?;
+    proxy
+        .inhibit(
+            env!("CARGO_PKG_NAME"),
+            concat!("Inhibited via ", env!("CARGO_PKG_NAME")),
+        )
+        .await
+}
+
+pub async fn uninhibit(cookie: u32) -> zbus::Result<()> {
+    let connection = Connection::session().await?;
+    let proxy = ScreenSaverProxy::new(&connection).await?;
+    proxy.un_inhibit(cookie).await
 }
 
 #[derive(Clone, Default)]
-/// Keep screen awake by inhibiting `org.freedesktop.ScreenSaver`
 pub struct Caffeine {
     cookie: Option<u32>,
 }
 
 impl Caffeine {
-    pub fn caffeinate(&mut self) -> Result<()> {
-        let proxy = get_proxy()?;
-        let cookie = proxy.inhibit(
-            env!("CARGO_PKG_NAME"),
-            concat!("Inhibited via ", env!("CARGO_PKG_NAME")),
-        )?;
-        self.cookie = Some(cookie);
-        Ok(())
-    }
-
-    pub fn decaffeinate(&mut self) -> Result<()> {
-        if let Some(cookie) = self.cookie {
-            let proxy = get_proxy()?;
-            proxy.un_inhibit(cookie)?;
-            self.cookie = None;
-        }
-        Ok(())
-    }
-
     pub fn is_caffeinated(&self) -> bool {
         self.cookie.is_some()
     }
 
-    pub fn cleanup(&self) -> Result<()> {
-        if let Some(cookie) = self.cookie {
-            let proxy = get_proxy()?;
-            proxy.un_inhibit(cookie)?;
-        }
-        Ok(())
+    pub fn set_cookie(&mut self, cookie: u32) {
+        self.cookie = Some(cookie);
+    }
+
+    pub fn clear_cookie(&mut self) {
+        self.cookie = None;
+    }
+
+    pub fn take_cookie(&mut self) -> Option<u32> {
+        self.cookie.take()
     }
 }
